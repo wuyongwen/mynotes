@@ -1,5 +1,5 @@
 ---
-typora-root-url: ../img
+typora-root-url: ../../mynotes
 ---
 
 [TOC]
@@ -220,7 +220,7 @@ Java 语言中运算符的优先级共分为 14 级，其中 1 级最高，14 �
   ```
 【1】【2】【3】处分别对应下面这三张图：
 
-  ![img](/70.png)![img](/71.png)![img](/72.png)
+  ![img](/img/70.png)![img](/img/71.png)![img](/img/72.png)
 
   
 
@@ -236,7 +236,7 @@ Java 语言中运算符的优先级共分为 14 级，其中 1 级最高，14 �
 - **参数类型：**参数像是一个占位符。当方法被调用时，传递值给参数。这个值被称为实参或变量。参数列表是指方法的参数类型、顺序和参数的个数。参数是可选的，方法可以不包含任何参数。
 - **方法体：**方法体包含具体的语句，定义该方法的功能。
 
-![img](/12-130Q1220955916.jpg)
+![img](/img/12-130Q1220955916.jpg)
 
 ### 方法的值传递
 
@@ -332,7 +332,7 @@ typeName... parameterName
 
 ## IO相关类
 
-![img](/iostream2xx.png)
+![img](/img/iostream2xx.png)
 
 1. 文件流：FileInputStream/FileOutputStream， FileReader/FileWriter
 
