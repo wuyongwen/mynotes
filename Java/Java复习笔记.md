@@ -220,7 +220,7 @@ Java 语言中运算符的优先级共分为 14 级，其中 1 级最高，14 �
   ```
 【1】【2】【3】处分别对应下面这三张图：
 
-  ![img](../img/70.png)![img](../img/71.png)![img](../img/72.png)
+  ![img](/70.png)![img](/71.png)![img](/72.png)
 
   
 
@@ -330,9 +330,9 @@ typeName... parameterName
 
 ## Java IO操作
 
-### IO相关类
+## IO相关类
 
-![img](../img/iostream2xx.png)
+![img](/iostream2xx.png)
 
 1. 文件流：FileInputStream/FileOutputStream， FileReader/FileWriter
 
