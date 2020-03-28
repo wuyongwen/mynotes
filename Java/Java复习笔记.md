@@ -972,7 +972,7 @@ public class TreeSet<E> extends AbstractSet<E>
 
 自然排序是根据集合元素的大小，以升序排列，如果要定制排序，应该使用Comparator接口，实现 int compare(T o1,T o2)方法
 
-### Queue
+#### Queue
 
 队列是一种先进先出的数据结构，元素在队列末尾添加，在队列头部删除。Queue接口扩展自Collection，并提供插入、提取、检验等操作。
 
@@ -991,9 +991,210 @@ public class TreeSet<E> extends AbstractSet<E>
 > 大顶堆：每个结点的值都大于或等于其左右孩子结点的值
 > 小顶堆：每个结点的值都小于或等于其左右孩子结点的值
 
+### Map 
 
+![img](/img/26341ef9fe5caf66ba0b7c40bba264a5_720w.png)
+
+Map 是一种存储键值对映射的容器类，在Map中键可以是任意类型的对象，但不能有重复的键，每个键都对应一个值，真正存储在图中的是键值构成的条目。
+
+#### HashMap
+
+```java
+public class HashMap<K,V> extends AbstractMap<K,V>
+    implements Map<K,V>, Cloneable, Serializable 
+```
+
+HashMap是基于**哈希表**的Map接口的**非同步实现**。在之前的版本中，HashMap采用**数组+链表**实现，即使用链表处理冲突，同一hash值的链表都存储在一个链表里。但是当链表中的元素较多，即hash值相等的元素较多时，通过key值依次查找的效率较低。而JDK1.8中，HashMap采用**数组+链表+红黑树**实现，当链表长度超过阈值（8）时，将链表转换为红黑树（前提是数组桶的长度小于64），这样大大减少了查找时间。
+
+```java
+public class HashMap<K,V> extends AbstractMap<K,V> implements Map<K,V>, Cloneable, Serializable {
+    // 序列号
+    private static final long serialVersionUID = 362498820763181265L;    
+    // 默认的初始容量是16
+    static final int DEFAULT_INITIAL_CAPACITY = 1 << 4;   
+    // 最大容量
+    static final int MAXIMUM_CAPACITY = 1 << 30; 
+    // 默认的填充因子
+    static final float DEFAULT_LOAD_FACTOR = 0.75f;
+    // 当桶(bucket)上的结点数大于这个值时会转成红黑树
+    static final int TREEIFY_THRESHOLD = 8; 
+    // 当桶(bucket)上的结点数小于这个值时树转链表
+    static final int UNTREEIFY_THRESHOLD = 6;
+    // 桶中结构转化为红黑树对应的table的最小大小
+    static final int MIN_TREEIFY_CAPACITY = 64;
+    // 存储元素的数组，总是2的幂次倍
+    transient Node<k,v>[] table; 
+    // 存放具体元素的集
+    transient Set<map.entry<k,v>> entrySet;
+    // 存放元素的个数，注意这个不等于数组的长度。
+    transient int size;
+    // 每次扩容和更改map结构的计数器
+    transient int modCount;   
+    // 临界值 当实际大小(容量*填充因子)超过临界值时，会进行扩容
+    int threshold;
+    // 填充因子
+    final float loadFactor;
+}
+```
+
+- hash算法
+
+（1）首先获取对象的hashCode()值，然后将hashCode值右移16位，然后将右移后的值与原来的hashCode做**异或**运算，返回结果。（其中h>>>16，在JDK1.8中，优化了高位运算的算法，使用了零扩展，无论正数还是负数，都在高位插入0）。
+
+（2）在putVal源码中，我们通过(n-1)&hash获取该对象的键在hashmap中的位置。（其中hash的值就是（1）中获得的值）其中n表示的是hash桶数组的长度，并且该长度为2的n次方，这样(n-1)&hash就等价于hash%n。因为&运算的效率高于%运算。
+
+* HashMap的put方法
+
+  ![img](/img/58e67eae921e4b431782c07444af824e_720w.png)
+
+  JDK1.7 单链表的采用头插入方式，同一位置上新元素总会被放在链表的头部位置；1.8 是尾插入方式。
+
+- 扩容机制
+
+  当元素数 > 负载因子0.75 * 桶的长度后，hash进行扩容，变成原大小的2倍。JDK1.7之前都是要重新hash运算，1.8后进行了优化。元素的位置要么是在原位置，要么是在原位置再移动2次幂的位置。JDK1.7中rehash的时候，旧链表迁移新链表的时候，如果在新表的数组索引位置相同，则链表元素会倒置。1.8不会。
+
+[JDK1.8 HashMap源码分析]: https://www.cnblogs.com/xiaoxi/p/7233201.html
+[Java 8系列之重新认识HashMap]: https://zhuanlan.zhihu.com/p/21673805
+
+#### LinkedHashMap
+
+```java
+public class LinkedHashMap<K,V>
+    extends HashMap<K,V>
+    implements Map<K,V>
+```
+
+LinkedHashMap继承自HashMap，它主要是用链表实现来扩展HashMap类，HashMap中条目是没有顺序的，但是在LinkedHashMap中元素既可以按照它们插入图的顺序排序，也可以按它们最后一次被访问的顺序排序, 它额外维护了一个双向链表用于保持迭代顺序。LinkedHashMap可以很好的支持LRU算法。
+
+　	与HashMap相比，LinkedHashMap增加 **双向链表头结点header** ，**双向链表尾结点tail** 和 **标志位accessOrder** (值为true时，表示按照访问顺序迭代；值为false时，表示按照插入顺序迭代)。
+
+​		LinkedHashMap 几乎和 HashMap 一样：从技术上来说，不同的是它定义了一个 Entry<K,V> header，这个 header 不是放在 Table 里，它是额外独立出来的。LinkedHashMap 通过继承 hashMap 中的 Entry<K,V>,并添加两个属性 Entry<K,V> before,after,和 header 结合起来组成一个双向链表，来实现按插入顺序或访问顺序排序。
+
+#### Hashtable
+
+```java
+public class Hashtable<K,V>
+    extends Dictionary<K,V>
+    implements Map<K,V>, Cloneable, java.io.Serializable 
+```
+
+默认构造函数，容量为 11，加载因子为 0.75。
+
+* 扩容
+
+  扩容 newCapacity = (oldCapacity << 1) + 1 ，数组中的数据重现哈希。
+
+* put数据
+
+  key或value为空会抛出**NullPointerException**
+
+> HashMap和Hashtable的区别
+>
+> HashMap是Hashtable的轻量级实现（非线程安全的实现），他们都完成了Map接口。主要的区别有：线程安全性，同步(synchronization)，以及速度。
+>
+> 1. Hashtable继承自Dictionary类，而HashMap是Java1.2引进的Map interface的一个实现。
+>
+> 2. HashMap允许将null作为一个entry的key或者value，而Hashtable不允许。
+>
+> 3. HashMap是非synchronized，而Hashtable是synchronized，这意味着Hashtable是线程安全的，多个线程可以共享一个Hashtable；而如果没有正确的同步的话，多个线程是不能共享HashMap的。Java 5提供了ConcurrentHashMap，它是HashTable的替代，比HashTable的扩展性更好。（在多个线程访问Hashtable时，不需要自己为它的方法实现同步，而HashMap 就必须为之提供外同步(Collections.synchronizedMap)）
+>
+> 4. 另一个区别是HashMap的迭代器(Iterator)是fail-fast迭代器，而Hashtable的enumerator迭代器不是fail-fast的。所以当有其它线程改变了HashMap的结构（增加或者移除元素），将会抛出ConcurrentModificationException，但迭代器本身的remove()方法移除元素则不会抛出ConcurrentModificationException异常。但这并不是一个一定发生的行为，要看JVM。这条同样也是Enumeration和Iterator的区别。fail-fast机制如果不理解原理，可以查看这篇文章：http://www.cnblogs.com/alexlo/archive/2013/03/14/2959233.html
+>
+> 5. 由于HashMap非线程安全，在只有一个线程访问的情况下，效率要高于HashTable。
+>
+> 6. HashMap把Hashtable的contains方法去掉了，改成containsvalue和containsKey。因为contains方法容易让人引起误解。 
+>
+> 7. Hashtable中hash数组默认大小是11，增加的方式是 old*2+1。HashMap中hash数组的默认大小是16，而且一定是2的指数。
+>
+> 8. 两者通过hash值散列到hash表的算法不一样：
+
+#### WeakHashMap
+
+```java
+public class WeakHashMap<K,V>
+    extends AbstractMap<K,V>
+    implements Map<K,V> 
+```
+
+WeakHashMap是一种改进的HashMap，它对key实行“弱引用”，如果一个key不再被外部所引用，那么该key可以被GC回收。
+
+WeakHashMap类中的Entry 
+
+```java
+Entry<K,V> extends WeakReference<Object> implements Map.Entry<K,V> 
+```
+
+通过**WeakReference**和**ReferenceQueue**实现的**。 WeakHashMap的key是“弱键”，即是WeakReference类型的；ReferenceQueue是一个队列，它会保存被GC回收的“弱键”。实现步骤是：
+  (01) 新建WeakHashMap，将“**键值对**”添加到WeakHashMap中。
+      实际上，WeakHashMap是通过数组table保存Entry(键值对)；每一个Entry实际上是一个单向链表，即Entry是键值对链表。
+  (02) 当**某“弱键”不再被其它对象引用**，并**被GC回收**时。在GC回收该“弱键”时，**这个“弱键”也同时会被添加到ReferenceQueue(queue)队列**中。
+  (03) 当下一次我们需要操作WeakHashMap时，会先同步table和queue。table中保存了全部的键值对，而queue中保存被GC回收的键值对；同步它们，就是**删除table中被GC回收的键值对。
+
+[WeakReference 解析](https://www.bbsmax.com/A/gVdnmoYX5W/)
+
+#### TreeMap
+
+![image-20200328012737054](/img/image-20200328012737054.png)
+
+```java
+public class TreeMap<K,V>
+    extends AbstractMap<K,V>
+    implements NavigableMap<K,V>, Cloneable, java.io.Serializable
+```
+
+TreeMap基于**红黑树（Red-Black tree）实现**。该映射根据**其键的自然顺序进行排序**，或者根据**创建映射时提供的 Comparator 进行排序**，具体取决于使用的构造方法。
+TreeMap的基本操作 containsKey、get、put 和 remove 的时间复杂度是 log(n) 。
+另外，TreeMap是**非同步**的。 它的iterator 方法返回的**迭代器是fail-fastl**的。
+
+Entry 对象保存数据：有key，value，左右节点，父节点，颜色属性。
+
+```java
+static final class Entry<K,V> implements Map.Entry<K,V> {
+    K key;
+    V value;
+    Entry<K,V> left;
+    Entry<K,V> right;
+    Entry<K,V> parent;
+    boolean color = BLACK;
+```
+
+#### IdentityHashMap
+
+```java
+public class IdentityHashMap<K,V>
+    extends AbstractMap<K,V>
+    implements Map<K,V>, java.io.Serializable, Cloneable
+```
+
+IdentityHashMap 利用哈希表实现 Map 接口，比较键（和值）时使用引用相等性代替对象相等性。
+
+- put方法
+
+  1. put的时候先通过引用是否相等判断key是不是已经在表中存在，如果存在更新oldValue为新的value，如果元素个数达到阈值，扩容处理，然后再找合适的位置放置key和value。
+
+  2. 在数组的i索引处存key，而紧挨着i的i+1处存value，并且由于hash方法的原因，key所对应的index全是偶数，自然i+1就是奇数了。这也说明了另一点，数组初始化的时候，数组的长度被定义为默认容量的**2**倍，因为数组元素的每次保存是都占了数组的两个位置。
+
+  3. put的扩容条件是当存放的数组达到数组长度的**1/3**的时候，就需要扩容。
+
+* get方法
+
+  get方法则比较简单，根据key获取数组的索引，然后对象比较引用，基本类型比较数据是否相等即可。如果处找到对象，说明i+1处就是索引对应的value，这也解释了初始化数组的时候2倍长度的原因了。
+
+- 与HashMap的不同
+  1. 两者最主要的区别是`IdentityHashMap`使用的是`==`比较key的值，而`HashMap`使用的是`equals()`
+  2. `HashMap`使用的是`hashCode()`查找位置，`IdentityHashMap`使用的是`System.identityHashCode(object)`
+
+  3. `IdentityHashMap`理论上来说速度要比`HashMap`快一点
+
+  4. `IdentityHashMap`中key能重复，但需要注意一点的是key比较的方法是`==`，所以若要存放两个相同的key，就需要存放不同的地址。
+
+  5. `IdentityHashMap` 的实现不同于HashMap，虽然也是数组，不过IdentityHashMap中没有用到链表，解决冲突的方式是计算下一个有效索引，并且将数据key和value紧挨着存在map中，即table[i]=key，那么table[i+1]=value。
+
+     
 
 ## 多线程
+
+## 反射
 
 ## NIO
 
