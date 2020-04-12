@@ -1194,9 +1194,406 @@ IdentityHashMap 利用哈希表实现 Map 接口，比较键（和值）时使�
 
 ## 多线程
 
+### 线程进程协程
+
+- 进程：每个进程都有独立的代码和数据空间（进程上下文），进程间的切换会有较大的开销，一个进程包含1--n个线程。（进程是资源分配的最小单位）
+
+- 线程：同一类线程共享代码和数据空间，每个线程有独立的运行栈和程序计数器(PC)，线程切换开销小。（线程是cpu调度的最小单位）
+- 协程是一种用户态的轻量级线程，协程的调度完全由用户控制。协程拥有自己的寄存器上下文和栈。协程调度切换时，将寄存器上下文和栈保存到其他地方，在切回来的时候，恢复先前保存的寄存器上下文和栈，直接操作栈则基本没有内核切换的开销，可以不加锁的访问全局变量，所以上下文的切换非常快。
+
+### 实现多线程
+
+- 继续*Thread*类
+- 实现*Runable*接口.
+- 还有一种是实现Callable接口，并与Future、线程池结合使用
+
+### 线程状态转换
+
+![img](/img/20150309140927553.jpeg)
+
+1. 新建状态（New）：新创建了一个线程对象。
+2. 就绪状态（Runnable）：线程对象创建后，其他线程调用了该对象的start()方法。该状态的线程位于可运行线程池中，变得可运行，等待获取CPU的使用权。
+3. 运行状态（Running）：就绪状态的线程获取了CPU，执行程序代码。
+4. 阻塞状态（Blocked）：阻塞状态是线程因为某种原因放弃CPU使用权，暂时停止运行。直到线程进入就绪状态，才有机会转到运行状态。阻塞的情况分三种：
+   - 等待阻塞：运行的线程执行wait()方法，JVM会把该线程放入等待池中。(wait会释放持有的锁)
+   - 同步阻塞：运行的线程在获取对象的同步锁时，若该同步锁被别的线程占用，则JVM会把该线程放入锁池中。对Running状态的线程加同步锁(Synchronized)使其进入(lock blocked pool ),同步锁被释放进入可运行状态(Runnable)。
+   - 其他阻塞：运行的线程执行sleep()或join()方法，或者发出了I/O请求时，JVM会把该线程置为阻塞状态。当sleep()状态超时、join()等待线程终止或者超时、或者I/O处理完毕时，线程重新转入就绪状态。（注意,sleep是不会释放持有的锁）
+5. 死亡状态（Dead）：线程执行完了或者因异常退出了run()方法，该线程结束生命周期。
+
+### 线程调度
+
+1. 调整线程优先级：Java线程有优先级，优先级高的线程会获得较多的运行机会。
+
+   Java线程的优先级用整数表示，取值范围是1~10，Thread类有以下三个静态常量：
+
+```java
+static int MAX_PRIORITY
+          线程可以具有的最高优先级，取值为10。
+static int MIN_PRIORITY
+          线程可以具有的最低优先级，取值为1。
+static int NORM_PRIORITY
+          分配给线程的默认优先级，取值为5。
+```
+
+​		Thread类的setPriority()和getPriority()方法分别用来设置和获取线程的优先级。
+ 	   每个线程都有默认的优先级。主线程的默认优先级为Thread.NORM_PRIORITY。
+​		线程的优先级有继承关系，比如A线程中创建了B线程，那么B将和A具有相同的优先级。
+​		JVM提供了10个线程优先级，但与常见的操作系统都不能很好的映射。如果希望程序能移植到各个操作系统		中，应该仅仅使用Thread类有以下三个静态常量作为优先级，这样能保证同样的优先级采用了同样的调度方		式。
+
+2. 线程睡眠：Thread.sleep(long millis)方法，使线程转到阻塞状态。millis参数设定睡眠的时间，以毫秒为单位。当睡眠结束后，就转为就绪（Runnable）状态。sleep()平台移植性好。
+3. 线程等待：Object类中的wait()方法，导致当前的线程等待，直到其他线程调用此对象的 notify() 方法或 notifyAll() 唤醒方法。这个两个唤醒方法也是Object类中的方法，行为等价于调用 wait(0) 一样。
+4. 线程让步：Thread.yield() 方法，暂停当前正在执行的线程对象，把执行机会让给相同或者更高优先级的线程。
+5. 线程加入：join()方法，等待其他线程终止。在当前线程中调用另一个线程的join()方法，则当前线程转入阻塞状态，直到另一个进程运行结束，当前线程再由阻塞转为就绪状态。
+6. 线程唤醒：Object类中的notify()方法，唤醒在此对象监视器上等待的单个线程。如果所有线程都在此对象上等待，则会选择唤醒其中一个线程。选择是任意性的，并在对实现做出决定时发生。线程通过调用其中一个 wait 方法，在对象的监视器上等待。 直到当前的线程放弃此对象上的锁定，才能继续执行被唤醒的线程。被唤醒的线程将以常规方式与在该对象上主动同步的其他所有线程进行竞争；类似的方法还有一个notifyAll()，唤醒在此对象监视器上等待的所有线程。
+
+>  monitor
+>
+> Java中的每个对象都有一个监视器，来监测并发代码的重入。在非多线程编码时该监视器不发挥作用，反之如果在synchronized 范围内，监视器发挥作用。
+>
+> wait/notify必须存在于synchronized块中。并且，这三个关键字针对的是同一个监视器（某对象的监视器）。这意味着wait之后，其他线程可以进入同步块执行。
+>
+> 当某代码并不持有监视器的使用权时去wait或notify，会抛出java.lang.IllegalMonitorStateException。也包括在synchronized块中去调用另一个对象的wait/notify，因为不同对象的监视器不同，同样会抛出此异常。
+
+### 线程同步
+
+1. `synchronized ` 关键字的作用域
+   - 是某个对象实例内，synchronized aMethod(){}可以防止多个线程同时访问这个对象的synchronized方法（如果一个对象有多个synchronized方法，只要一个线程访问了其中的一个synchronized方法，其它线程不能同时访问这个对象中任何一个synchronized方法）。这时，不同的对象实例的synchronized方法是不相干扰的。也就是说，其它线程照样可以同时访问相同类的另一个对象实例中的synchronized方法；
+   - 是某个类的范围，synchronized static aStaticMethod{}防止多个线程同时访问这个类中的synchronized static 方法。它可以对类的所有对象实例起作用。
+2. 除了方法前用synchronized关键字，synchronized关键字还可以用于方法中的某个区块中，表示只对这个区块的资源实行互斥访问。用法是: synchronized(this){/*区块*/}，它的作用域是当前对象；
+3. synchronized关键字是不能继承的，也就是说，基类的方法synchronized f(){} 在继承类中并不自动是synchronized f(){}，而是变成了f(){}。继承类需要你显式的指定它的某个方法为synchronized方法；
+   
+
+### 多线程高级编程
+
+#### ThreadLocal类
+
+- ThreadLocal是一个本地线程副本变量工具类。每个Thread内部维护着一个ThreadLocalMap，它是一个Map。这个映射表的Key是一个弱引用，其实就是ThreadLocal本身，Value是真正存的线程变量Object。各个线程之间的变量互不干扰，在高并发场景下，可以实现无状态的调用，特别适用于各个线程依赖不同的变量值完成操作的场景。
+- 在每个线程Thread内部有一个ThreadLocal.ThreadLocalMap类型的成员变量threadLocals，这个threadLocals就是用来存储实际的变量副本的，键值为当前ThreadLocal变量，value为变量副本（即T类型的变量）。
+- 初始时，在Thread里面，threadLocals为空，当通过ThreadLocal变量调用get()方法或者set()方法，就会对Thread类中的threadLocals进行初始化，并且以当前ThreadLocal变量为键值，以ThreadLocal要保存的副本变量为value，存到threadLocals。在当前线程里面，如果要使用副本变量，就可以通过get方法在threadLocals里面查找。
+- ThreadLocalMap中解决Hash冲突的方式并非链表的方式，而是采用线性探测的方式，简单的步长加1或减1，寻找下一个相邻的位置。
+- 每个ThreadLocal只能保存一个变量副本，如果想要上线一个线程能够保存多个副本以上，就需要创建多个ThreadLocal。
+- ThreadLocal内部的ThreadLocalMap键为弱引用，会有内存泄漏的风险。要习惯调用remove方法清除引用。
+
+> ThreadLocal为什么会内存泄漏
+>
+> ThreadLocal在ThreadLocalMap中是以一个弱引用身份被Entry中的Key引用的，因此如果ThreadLocal没有外部强引用来引用它，那么ThreadLocal会在下次JVM垃圾收集时被回收。这个时候就会出现Entry中Key已经被回收，出现一个null Key的情况，外部读取ThreadLocalMap中的元素是无法通过null Key来找到Value的。因此如果当前线程的生命周期很长，一直存在，那么其内部的ThreadLocalMap对象也一直生存下来，这些null key就存在一条强引用链的关系一直存在：Thread --> ThreadLocalMap-->Entry-->Value，这条强引用链会导致Entry不会回收，Value也不会回收，但Entry中的Key却已经被回收的情况，造成内存泄漏。
+>
+> 但是JVM团队已经考虑到这样的情况，并做了一些措施来保证ThreadLocal尽量不会内存泄漏：在ThreadLocal的get()、set()、remove()方法调用的时候会清除掉线程ThreadLocalMap中所有Entry中Key为null的Value，并将整个Entry设置为null，利于下次内存回收。
+>
+> [tomcat多线程处理及ThreadLocal使用注意](https://blog.csdn.net/weixin_42168940/article/details/86626014)
+>
+> [ThreadLocal-面试必问深度解析](https://www.jianshu.com/p/98b68c97df9b)
+>
+> [ThreadLocal内存泄漏真因探究](https://www.jianshu.com/p/a1cd61fa22da)
+
+
+
+#### 原子类
+
+* 根据操作的数据类型，可以将JUC包中的原子类分为4类
+
+  **基本类型**
+
+  使用原子的方式更新基本类型
+
+  AtomicInteger：整形原子类
+
+  AtomicLong：长整型原子类
+
+  AtomicBoolean ：布尔型原子类
+
+  **数组类型**
+
+  使用原子的方式更新数组里的某个元素
+
+  AtomicIntegerArray：整形数组原子类
+
+  AtomicLongArray：长整形数组原子类
+
+  AtomicReferenceArray ：引用类型数组原子类
+
+  **引用类型**（基本类型原子类只能更新一个变量，如果需要原子更新多个变量，需要使用 引用类型原子类。）
+
+  AtomicReference：引用类型原子类
+
+  AtomicStampedRerence：原子更新引用类型里的字段原子类
+
+  AtomicMarkableReference ：原子更新带有标记位的引用类型
+
+  **对象的属性修改类型**（如果需要原子更新某个类里的某个字段时，需要用到对象的属性修改类型原子类。）
+
+  AtomicIntegerFieldUpdater:原子更新整形字段的更新器
+
+  AtomicLongFieldUpdater：原子更新长整形字段的更新器
+
+  AtomicStampedReference ：原子更新带有版本号的引用类型。该类将整数值与引用关联起来，可用于解决原子的更新数据和数据的版本号，可以解决使用 CAS 进行原子更新时可能出现的 ABA 问题。
+
+* 基本数据类型原子类的优势
+
+  多线程环境下保证线程安全
+
+* 原理
+
+  AtomicInteger 类主要利用 CAS (compare and swap) + volatile 和 native 方法来保证原子操作，从而避免 synchronized 的高开销，执行效率大为提升。
+
+  CAS的原理是拿期望的值和原本的一个值作比较，如果相同则更新成新的值。UnSafe 类的 objectFieldOffset() 方法是一个本地方法，这个方法是用来拿到“原来的值”的内存地址，返回值是 valueOffset。另外 value 是一个volatile变量，在内存中可见，因此 JVM 可以保证任何时刻任何线程总能拿到该变量的最新值。
+
+  > **CAS 介绍**
+  >
+  > CAS操作（又称为无锁操作）是一种乐观锁策略。
+  >
+  > ```java
+  > public final int getAndAddInt(Object var1, long var2, int var4) {
+  >         int var5;
+  >         do {
+  >             var5 = this.getIntVolatile(var1, var2);
+  >         } while(!this.compareAndSwapInt(var1, var2, var5, var5 + var4));
+  > 
+  >         return var5;
+  >     }
+  > ```
+  >
+  >  CAS有3个操作数，内存值V，旧的预期值A，要修改的新值B。当且仅当预期值A和内存值V相同时，将内存值V修改为B，否则什么都不做。可见只有自旋实现更新数据操作之后，while循环才能够结束。
+  >
+  > 该操作是一个原子操作，被广泛的应用在Java的底层实现中。在Java中，CAS主要是由sun.misc.Unsafe这个类通过JNI调用CPU底层指令实现。
+
+  ## CAS的问题
+
+  1. 自旋时间过长。由`compareAndSwapInt`函数可知，自旋时间过长会对性能是很大的消耗。
+  2. ABA问题。因为CAS会检查旧值有没有变化，这里存在这样一个有意思的问题。比如一个旧值A变为了成B，然后再变成A，刚好在做CAS时检查发现旧值并没有变化依然为A，但是实际上的确发生了变化。解决方案可以添加一个版本号可以解决。原来的变化路径A->B->A就变成了1A->2B->3C，或使用AtomicStampedReference工具类。
+
+  ## LongAdder
+
+  为了解决自旋导致的性能问题，JDK8在Atomic包中推出了LongAdder类。LongAdder采用的方法是，共享热点数据分离的计数：将一个数字的值拆分为一个数组。不同线程会命中到数组的不同槽中，各个线程只对自己槽中的那个值进行CAS操作，这样热点就被分散了，冲突的概率就小很多；要得到这个数字的话，就要把这个值加起来。相比AtomicLong，并发量大大提高。
+
+  优点：有很高性能的并发写的能力
+  缺点：读取的性能不是很高效，而且如果读取的时候出现并发写的话，结果可能不是正确的
+
+[Java多线程之原子操作类](https://my.oschina.net/u/2425469/blog/3107473#h1_1)
+
+[Java 并发：原子类](https://blog.csdn.net/youyou1543724847/article/details/52735510)
+
+#### Lock类
+
+在java.util.concurrent包内。共有三个实现：
+
+```java
+ReentrantLock
+ReentrantReadWriteLock.ReadLock
+ReentrantReadWriteLock.WriteLock
+```
+
+主要目的是和synchronized一样， 两者都是为了解决同步问题，处理资源争端而产生的技术。功能类似但有一些区别。区别如下：
+
+![img](/img/412d294ff5535bbcddc0d979b2a339e6102264.png)
+
+- lock更灵活，可以自由定义多把锁的枷锁解锁顺序（synchronized要按照先加的后解顺序）
+
+- 提供多种加锁方案，lock 阻塞式, trylock 无阻塞式, lockInterruptily 可打断式， 还有trylock的带超时时间版本。
+
+- 可以和Condition接口的结合。
+
+  ```java
+  private Condition condition = lock.newCondition();
+  ```
+
+  通过lock对象可以获得condition对象。condition接口提供了如下方法：
+
+  ```java
+  void await() throws InterruptedException; // 同 ojbect.wait();
+  void signal(); // 同 object.notify();
+  void signalAll(); // 同 object.notifyall();
+  boolean awaitUntil(Date deadline) throws InterruptedException;
+  ```
+
+**ReentrantLock**　　　　
+可重入的意义在于持有锁的线程可以继续持有，并且要释放对等的次数后才真正释放该锁。
+
+* 使用方法是：
+
+```java
+// 1. 先new一个实例 
+static ReentrantLock r=new ReentrantLock();
+//2. 加锁
+r.lock();
+// 或 r.lockInterruptibly();
+// 或 r.tryLock();
+
+/*此处也是个不同，后者可被打断。当a线程lock后，b线程阻塞，此时如果是lockInterruptibly，那么在调用b.interrupt()之后，b线程退出阻塞，并放弃对资源的争抢，进入catch块。（如果使用后者，必须throw interruptable exception 或catch）　*/
+
+// 3. 释放锁
+r.unlock();
+
+/*必须做！何为必须做呢，要放在finally里面。以防止异常跳出了正常流程，导致灾难。这里补充一个小知识点，finally是可以信任的：经过测试，哪怕是发生了OutofMemoryError，finally块中的语句执行也能够得到保证。*/
+```
+
+* 实例化方法默认不传参数是非公平锁。
+
+  公平锁：按照线程加锁的顺序来获取锁
+  非公平锁：随机竞争来得到锁
+
+*  tryLock
+
+  用来尝试获取锁，如果获取成功，则返回true，如果获取失败（即锁已被其他线程获取），则返回false，也就说这个方法无论如何都会立即返回。在拿不到锁时不会一直在那等待。即使已将此锁设置为使用公平排序策略，但是调用 tryLock() 仍将 立即获取锁（如果有可用的）.
+
+  [Lock，tryLock，lockInterruptibly有什么区别](https://www.zhihu.com/question/36771163)
+
+* 实现原理
+
+  ReentrantLock主要利用CAS+AQS队列来实现。它支持公平锁和非公平锁。
+
+  AbstractQueuedSynchronizer简称AQS。
+
+  ![img](/img/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L2Z1eXV3ZWkyMDE1,size_16,color_FFFFFF,t_70.png)
+
+  AQS使用一个FIFO的队列表示排队等待锁的线程，队列头节点称作“哨兵节点”或者“哑节点”，它不与任何线程关联。其他的节点与等待线程关联，每个节点维护一个等待状态waitStatus
+
+  ReentrantLock的基本实现可以概括为：先通过CAS尝试获取锁。如果此时已经有线程占据了锁，那就加入AQS队列并且被挂起。当锁被释放之后，排在CLH队列队首的线程会被唤醒，然后CAS再次尝试获取锁。在这个时候，如果：
+
+  非公平锁：如果同时还有另一个线程进来尝试获取，那么有可能会让这个线程抢先获取；
+
+  公平锁：如果同时还有另一个线程进来尝试获取，当它发现自己不是在队首的话，就会排到队尾，由队首的线程获取到锁。
+
+  [ReentrantLock原理](https://blog.csdn.net/fuyuwei2015/article/details/83719444)
+
+  [从ReentrantLock的实现看AQS的原理及应用](https://tech.meituan.com/2019/12/05/aqs-theory-and-apply.html)
+
+  [不可不说的Java“锁”事](https://mp.weixin.qq.com/s?__biz=MjM5NjQ5MTI5OA==&mid=2651749434&idx=3&sn=5ffa63ad47fe166f2f1a9f604ed10091&chksm=bd12a5778a652c61509d9e718ab086ff27ad8768586ea9b38c3dcf9e017a8e49bcae3df9bcc8&scene=38#wechat_redirect)
+
+**ReentrantReadWriteLock**
+
+可重入读写锁（读写锁的一个实现），读写锁分成两个锁，一个锁是读锁，一个锁是写锁。两者都有lock,unlock方法。写写，写读互斥；读读不互斥。可以实现并发读的高效线程安全代码。
+
+```java
+　ReentrantReadWriteLock lock = new ReentrantReadWriteLock()
+　ReadLock r = lock.readLock();
+　WriteLock w = lock.writeLock();
+  r.lock(); // r.unlock();
+	w.lock(); // w.unlock();
+```
+
+#### 容器类
+
+* BlockingQueue
+
+  * 放入数据：
+
+    > offer(anObject):表示如果可能的话,将anObject加到BlockingQueue里,即如果BlockingQueue可以容	纳,则返回true,否则返回false.（本方法不阻塞当前执行方法的线程）
+    > offer(E o, long timeout, TimeUnit unit),可以设定等待的时间，如果在指定的时间内，还不能往队列	中加入BlockingQueue，则返回失败。
+    > put(anObject):把anObject加到BlockingQueue里,如果BlockQueue没有空间,则调用此方法的线程被	阻断直到BlockingQueue里面有空间再继续.
+
+  * 获取数据：
+
+    > poll(time):取走BlockingQueue里排在首位的对象,若不能立即取出,则可以等time参数规定的时间,
+    > 　取不到时返回null;
+    > poll(long timeout, TimeUnit unit)：从BlockingQueue取出一个队首的对象，如果在指定时间内，
+    > 	队列一旦有数据可取，则立即返回队列中的数据。否则知道时间超时还没有数据可取，返回失败。
+    > take():取走BlockingQueue里排在首位的对象,若BlockingQueue为空,阻断进入等待状态直到
+    > 　BlockingQueue有新的数据被加入; 
+    > drainTo():一次性从BlockingQueue获取所有可用的数据对象（还可以指定获取数据的个数）， 
+    > 　通过该方法，可以提升获取数据效率；不需要多次分批加锁或释放锁。
+
+  * 常见BlockingQueue
+
+  ![img](/img/2010112416335973.jpg)
+
+  [Java多线程-工具篇-BlockingQueue](https://www.cnblogs.com/jackyuj/archive/2010/11/24/1886553.html)
+
+* ConcurrentHashMap
+
+  **JDK1.5中的实现**
+
+  ConcurrentHashMap使用的是分段锁技术,将ConcurrentHashMap将锁一段一段的存储，然后给每一段数据配一把锁（segment），当一个线程占用一把锁（segment）访问其中一段数据的时候，其他段的数据也能被其它的线程访问，默认分配16个segment。默认比Hashtable效率提高16倍。
+
+  ConcurrentHashMap的结构图如下（网友贡献的图，哈）：
+
+  ![image-20200403184655912](/img/image-20200403184655912.png)
+
+  **JDK1.8中的实现**
+
+  ConcurrentHashMap取消了segment分段锁，而采用CAS和synchronized来保证并发安全。数据结构跟HashMap1.8的结构一样，**数组+链表/红黑二叉树**。
+   synchronized只锁定当前链表或红黑二叉树的首节点，这样只要hash不冲突，就不会产生并发，效率又提升N倍。
+
+  JDK1.8的ConcurrentHashMap的结构图如下：
+
+  ![image-20200403184744213](/img/image-20200403184744213.png)
+
+  > **TreeBin:** 红黑二叉树节点
+  >  **Node:** 链表节点
+
+JDK8中的实现也是锁分离的思想，它把锁分的比segment（JDK1.5）更细一些，只要hash不冲突，就不会出现并发获得锁的情况。它首先使用无锁操作CAS插入头结点，如果插入失败，说明已经有别的线程插入头结点了，再次循环进行操作。如果头结点已经存在，则通过synchronized获得头结点锁，进行后续的操作。性能比segment分段锁又再次提升。
+
+[ConcurrentHashMap 原理解析](https://www.jianshu.com/p/d10256f0ebea)
+
+
+
+#### 管理类
+
+Java通过Executors提供了四种线程池，这四种线程池都是直接或间接配置ThreadPoolExecutor的参数实现的。
+
+##### 可缓存线程池CachedThreadPool()
+
+1. 这种线程池内部没有核心线程，线程的数量是有没限制的。
+2. 在创建任务时，若有空闲的线程时则复用空闲的线程，若没有则新建线程。
+3. 没有工作的线程（闲置状态）在超过了60S还不做事，就会销毁。
+
+##### FixedThreadPool 定长线程池
+
+该线程池的最大线程数等于核心线程数，所以在默认情况下，该线程池的线程不会因为闲置状态超时而被销毁。
+
+如果当前线程数小于核心线程数，并且也有闲置线程的时候提交了任务，这时也不会去复用之前的闲置线程，会创建新的线程去执行任务。如果当前执行任务数大于了核心线程数，大于的部分就会进入队列等待。等着有闲置的线程来执行这个任务。
+
+##### SingleThreadPool
+
+1. 有且仅有一个工作线程执行任务
+2. 所有任务按照指定顺序执行，即遵循队列的入队出队规则
+
+##### ScheduledThreadPool
+
+根据源码可以看出：
+ DEFAULT_KEEPALIVE_MILLIS就是默认10L，这里就是10秒。这个线程池有点像是吧CachedThreadPool和FixedThreadPool 结合了一下。
+
+1. 不仅设置了核心线程数，最大线程数也是Integer.MAX_VALUE。
+2. 这个线程池是上述4个中为唯一个有延迟执行和周期执行任务的线程池。
+
+[java线程池ThreadPoolExecutor类使用详解](https://www.cnblogs.com/dafanjoy/p/9729358.html)
+
+作者：我弟是个程序员
+链接：https://www.jianshu.com/p/ae67972d1156
+来源：简书
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+[Java线程池实现原理](https://mp.weixin.qq.com/s/baYuX8aCwQ9PP6k7TDl2Ww)
+
 ## 反射
 
 ## NIO
 
+## JVM原理
 
+### jvm基本结构
+
+![image](/img/352511-20170810232433792-373676900.png)
+
+class文件被jvm装载以后，经过jvm的内存空间调配，最终是由执行引擎完成class文件的执行。
+
+#### 内存空间
+
+JVM内存空间包含：方法区、java堆、java栈、本地方法栈。
+
+* 方法区
+
+  各个线程共享的区域，存放类信息、常量、静态变量。
+
+* java堆
+
+  java堆也是线程共享的区域，我们的类的实例就放在这个区域，可以想象你的一个系统会产生很多实例，因此java堆的空间也是最大的。如果java堆空间不足了，程序会抛出OutOfMemoryError异常。
+
+* java栈
+
+  java栈是每个线程私有的区域，它的生命周期与线程相同，一个线程对应一个java栈，每执行一个方法就会往栈中压入一个元素，这个元素叫“栈帧”，而栈帧中包括了方法中的局部变量、用于存放中间状态值的操作栈。如果java栈空间不足了，程序会抛出StackOverflowError异常，想一想什么情况下会容易产生这个错误，对，递归，递归如果深度很深，就会执行大量的方法，方法越多java栈的占用空间越大。
+
+* 本地方法栈
+
+  本地方法栈角色和java栈类似，只不过它是用来表示执行本地方法的，本地方法栈存放的方法调用本地方法接口，最终调用本地方法库，实现与操作系统、硬件交互的目的。
 
